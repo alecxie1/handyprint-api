@@ -3,6 +3,7 @@ from flask import Flask, render_template, send_from_directory
 from config import BRANDS_DIR, UPLOADS_DIR, GENERATED_DIR
 from routes.brand import brand_bp
 from routes.generate import generate_bp
+from routes.canvas import canvas_bp
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -15,6 +16,7 @@ for d in [BRANDS_DIR, UPLOADS_DIR, GENERATED_DIR]:
 # Register blueprints
 app.register_blueprint(brand_bp)
 app.register_blueprint(generate_bp)
+app.register_blueprint(canvas_bp)
 
 
 # ── UI Routes ──────────────────────────────────────────────────────────────────

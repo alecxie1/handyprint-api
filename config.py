@@ -42,6 +42,13 @@ GENERATED_DIR = os.path.join(os.path.dirname(__file__), "generated")
 # yft-design backend URL (our mini backend or Kevin's)
 YFT_BACKEND_URL = os.getenv("YFT_BACKEND_URL", "http://localhost:8789")
 
+# Template IDs — created via handy-backend, one per format
+TEMPLATE_IDS = {
+    "wechat_banner": os.getenv("TEMPLATE_ID_WECHAT_BANNER", "v3euYUaMDX"),
+    "a4_flyer": os.getenv("TEMPLATE_ID_A4_FLYER", "07qvMFBqhN"),
+    "square_post": os.getenv("TEMPLATE_ID_SQUARE_POST", "v1JvLFg3IC"),
+}
+
 BRAND_PROFILE_SCHEMA = {
     "type": "object",
     "properties": {
