@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}生成结果{% endblock %}
+{% block nav5 %}active{% endblock %}
+{% block head %}
+<style>
+  .img-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .img-card {
+    border: 2px solid var(--border); border-radius: var(--radius); overflow: hidden;
+    background: white; transition: border-color 0.15s;
+  }
+  .img-card:hover { border-color: var(--charcoal); }
+  .img-card img { width: 100%; display: block; object-fit: cover; aspect-ratio: 4/3; }
+  .img-card-body { padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; }
+  .img-card-label { font-size: 13px; color: var(--muted); }
+  .btn-editor {
+    padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 600;
+    cursor: not-allowed; background: var(--gray); color: var(--muted);
+    border: 1px solid var(--border); position: relative;
+  }
+  .btn-editor-active {
+    background: var(--charcoal); color: white; cursor: pointer; border-color: var(--charcoal);
+  }
+  .tooltip {
+    position: absolute; bottom: 110%; left: 50%; transform: translateX(-50%);
+    background: var(--charcoal); color: white; font-size: 11px; padding: 6px 10px;
+    border-radius: 6px; white-space: nowrap; pointer-events: none; opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .btn-editor:hover .tooltip { opacity: 1; }
+</style>
+{% endblock %}
+{% block content %}
+<h1>生成结果</h1>
+<p class="subtitle">选择一张背景变体，在编辑器中添加 Logo、山脉图形和文字层</p>
+
+<div id="no-results" style="display:none" class="card">
+  <p style="color:var(--muted);font-size:14px;">暂无结果。请先 <a href="/generate" style="color:var(--red);">生成图像</a>。</p>
+</div>
+
+<div id="results-view" style="display:none">
+  <div class="card" style="display:flex;gap:16px;align-items:center;justify-content:space-between;margin-bottom:20px;">
+    <div style="display:flex;gap:24px;font-size:13px;">
+      <div><span style="color:var(--muted);">品牌：</span><strong id="client-display">—</strong></div>
+      <div><span style="color:var(--muted);">格式：</span><strong id="format-display">—</strong></div>
+      <div><span style="color:var(--muted);">尺寸：</span><strong id="dims-display">—</strong></div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-secondary" onclick="window.location.href='/review'">修改提示词</button>
+      <button class="btn btn-secondary" onclick="window.location.href='/generate'">新活动</button>
+      <button class="btn btn-secondary" onclick="window.location.href='/'">换品牌</button>
+    </div>
+  </div>
+
+  <div class="card" style="background:#fef9c3;border-color:#fde68a;margin-bottom:20px;">
+    <div style="font-size:13px;color:#92400e;">
+      ⏳ <strong>等待 Kevin：</strong>编辑器集成（Step 4）需要 Kevin 提供 template_id 和字体注册。
+      或者，我们自己运行 handy-backend 来解锁。背景图已可下载预览。
+    </div>
+  </div>
+
+  <div class="img-grid" id="img-grid"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const results = state.get('results');
+  const clientName = state.get('client_name');
+
+  if (!results || !results.images || results.images.length === 0) {
+    document.getElementById('no-results').style.display = 'block';
+  } else {
+    document.getElementById('results-view').style.display = 'block';
+    document.getElementById('client-display').textContent = clientName || '—';
+    document.getElementById('format-display').textContent = results.format ? results.format.label : '—';
+    document.getElementById('dims-display').textContent =
+      results.format ? `${results.format.width} × ${results.format.height} px` : '—';
+
+    const grid = document.getElementById('img-grid');
+    results.images.forEach((img, i) => {
+      const card = document.createElement('div');
+      card.className = 'img-card';
+      card.innerHTML = `
+        <img src="${img.url}" alt="变体 ${i+1}" loading="lazy">
+        <div class="img-card-body">
+          <span class="img-card-label">变体 ${i+1}</span>
+          <div style="display:flex;gap:8px;">
+            <a href="${img.url}" download class="btn btn-secondary" style="font-size:12px;padding:6px 12px;text-decoration:none;">↓ 下载</a>
+            <button class="btn-editor" title="等待 Kevin 提供 template_id">
+              在编辑器中打开
+              <div class="tooltip">⏳ 等待 Kevin：需要 template_id 和字体注册<br>或运行 handy-backend 自行解锁</div>
+            </button>
+          </div>
+        </div>`;
+      grid.appendChild(card);
+    });
+  }
+</script>
+{% endblock %}

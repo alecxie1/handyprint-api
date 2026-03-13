@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}生成设置{% endblock %}
+{% block nav3 %}active{% endblock %}
+{% block content %}
+<h1>生成设置</h1>
+<p class="subtitle">选择输出格式，描述此次活动内容</p>
+
+<div id="error" class="error"></div>
+
+<div class="card" id="brand-info" style="display:flex;align-items:center;justify-content:space-between;">
+  <div>
+    <span style="font-size:13px;color:var(--muted);">当前品牌：</span>
+    <span style="font-weight:600;" id="client-display">—</span>
+  </div>
+  <a href="/" style="font-size:13px;color:var(--red);">更换品牌</a>
+</div>
+
+<div class="card">
+  <h2>输出格式</h2>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;" id="format-grid">
+    <div class="format-card" data-key="wechat_banner">
+      <div class="format-icon">📱</div>
+      <div class="format-label">WeChat 横幅</div>
+      <div class="format-dims">900 × 500 px</div>
+    </div>
+    <div class="format-card" data-key="a4_flyer">
+      <div class="format-icon">📄</div>
+      <div class="format-label">A4 宣传单</div>
+      <div class="format-dims">2480 × 3508 px</div>
+    </div>
+    <div class="format-card" data-key="square_post">
+      <div class="format-icon">⬜</div>
+      <div class="format-label">方形社交图</div>
+      <div class="format-dims">1080 × 1080 px</div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>活动描述</h2>
+  <label for="campaign-input">用中文或英文描述这次活动（50–200 字）</label>
+  <textarea id="campaign-input" rows="5" placeholder="例：做一张夏季健康促销海报，主题是关爱家庭健康，目标受众是 30-50 岁的城市家庭。"></textarea>
+  <div style="font-size:12px;color:var(--muted);margin-top:6px;" id="char-count">0 字</div>
+</div>
+
+<button class="btn btn-primary" id="build-btn" disabled>
+  <div class="spinner" id="spinner" style="display:none"></div>
+  <span id="btn-text">组装提示词 →</span>
+</button>
+
+<style>
+  .format-card {
+    border: 2px solid var(--border); border-radius: var(--radius); padding: 20px;
+    text-align: center; cursor: pointer; transition: border-color 0.15s, background 0.15s;
+  }
+  .format-card:hover { border-color: var(--charcoal); }
+  .format-card.selected { border-color: var(--red); background: #fff5f7; }
+  .format-icon { font-size: 28px; margin-bottom: 8px; }
+  .format-label { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .format-dims { font-size: 12px; color: var(--muted); }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const profile = state.get('profile');
+  const clientName = state.get('client_name');
+  document.getElementById('client-display').textContent = clientName || '—';
+
+  let selectedFormat = null;
+  const campaignInput = document.getElementById('campaign-input');
+  const buildBtn = document.getElementById('build-btn');
+  const spinner = document.getElementById('spinner');
+  const btnText = document.getElementById('btn-text');
+  const errEl = document.getElementById('error');
+
+  document.querySelectorAll('.format-card').forEach(card => {
+    card.onclick = () => {
+      document.querySelectorAll('.format-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      selectedFormat = card.dataset.key;
+      updateBtn();
+    };
+  });
+
+  campaignInput.oninput = () => {
+    document.getElementById('char-count').textContent = campaignInput.value.length + ' 字';
+    updateBtn();
+  };
+
+  function updateBtn() {
+    buildBtn.disabled = !selectedFormat || campaignInput.value.trim().length < 10 || !profile;
+  }
+
+  buildBtn.onclick = async () => {
+    hideError(errEl);
+    buildBtn.disabled = true;
+    spinner.style.display = 'block';
+    btnText.textContent = '组装中...';
+
+    try {
+      const data = await api('/api/prompt/assemble', 'POST', {
+        client_name: clientName,
+        format_key: selectedFormat,
+        campaign_description: campaignInput.value.trim(),
+      });
+      state.set('prompt', data.prompt);
+      state.set('format_key', selectedFormat);
+      state.set('format_label', data.format_label);
+      window.location.href = '/review';
+    } catch(e) {
+      showError(errEl, '提示词组装失败: ' + e.message);
+      buildBtn.disabled = false;
+      spinner.style.display = 'none';
+      btnText.textContent = '组装提示词 →';
+    }
+  };
+</script>
+{% endblock %}

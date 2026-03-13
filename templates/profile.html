@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}品牌档案{% endblock %}
+{% block nav2 %}active{% endblock %}
+{% block content %}
+<h1>品牌档案预览</h1>
+<p class="subtitle">确认提取结果，然后继续生成</p>
+
+<div id="error" class="error"></div>
+<div id="no-profile" style="display:none" class="card">
+  <p style="color:var(--muted);font-size:14px;">未找到品牌档案。请先 <a href="/" style="color:var(--red)">上传品牌素材</a>。</p>
+</div>
+
+<div id="profile-view" style="display:none">
+  <div class="card" style="margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;">
+    <div>
+      <div style="font-size:18px;font-weight:700;" id="client-display">—</div>
+      <div style="font-size:13px;color:var(--muted);">品牌档案已加载</div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-secondary" onclick="window.location.href='/'">重新上传</button>
+      <button class="btn btn-primary" onclick="window.location.href='/generate'">继续 →</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>颜色</h2>
+    <div id="colors-view"></div>
+  </div>
+
+  <div class="card">
+    <h2>排版 & 文字</h2>
+    <div id="typography-view"></div>
+  </div>
+
+  <div class="card">
+    <h2>构图 & 摄影</h2>
+    <div id="composition-view"></div>
+  </div>
+
+  <div class="card">
+    <h2>品牌标志元素</h2>
+    <div id="signature-view"></div>
+  </div>
+
+  <div class="card">
+    <h2>品牌调性</h2>
+    <div id="mood-view"></div>
+  </div>
+
+  <div class="card" style="border-color:#fecaca;background:#fef2f2;">
+    <h2 style="color:#b91c1c;">禁止事项</h2>
+    <div id="avoid-view"></div>
+  </div>
+
+  <div style="margin-top:24px;display:flex;gap:8px;">
+    <button class="btn btn-secondary" onclick="window.location.href='/'">← 重新上传</button>
+    <button class="btn btn-primary" onclick="window.location.href='/generate'">确认，继续生成 →</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const profile = state.get('profile');
+  const clientName = state.get('client_name');
+
+  if (!profile) {
+    document.getElementById('no-profile').style.display = 'block';
+  } else {
+    document.getElementById('profile-view').style.display = 'block';
+    document.getElementById('client-display').textContent = clientName || '未知客户';
+    render();
+  }
+
+  function kv(key, val) {
+    if (!val || (Array.isArray(val) && val.length === 0)) return '';
+    const display = Array.isArray(val) ? val.join('，') : val;
+    return `<div style="display:flex;gap:12px;margin-bottom:8px;font-size:13px;">
+      <span style="color:var(--muted);min-width:120px;flex-shrink:0;">${key}</span>
+      <span>${display}</span>
+    </div>`;
+  }
+
+  function swatch(hex) {
+    return `<span style="display:inline-block;width:20px;height:20px;background:${hex};border-radius:4px;border:1px solid rgba(0,0,0,0.1);vertical-align:middle;margin-right:6px;" title="${hex}"></span>${hex}`;
+  }
+
+  function render() {
+    const c = profile.colors;
+    document.getElementById('colors-view').innerHTML = `
+      <div style="margin-bottom:12px;font-size:13px;">
+        <div style="margin-bottom:6px;"><strong>主色：</strong> ${swatch(c.dominant)}</div>
+        ${c.supporting.length ? `<div style="margin-bottom:6px;"><strong>辅色：</strong> ${c.supporting.map(swatch).join('  ')}</div>` : ''}
+        ${c.accent.length ? `<div style="margin-bottom:6px;"><strong>点缀色：</strong> ${c.accent.map(swatch).join('  ')}</div>` : ''}
+      </div>
+      ${kv('背景色', c.typical_background)}
+      ${kv('色彩情绪', c.color_mood)}
+      ${kv('禁用色', c.forbidden)}
+    `;
+
+    const t = profile.typography;
+    document.getElementById('typography-view').innerHTML =
+      kv('字体风格', t.style) + kv('字重', t.weight) +
+      kv('标题处理', t.headline_treatment) + kv('中文字体', t.chinese_text_style) +
+      kv('层级规则', t.size_hierarchy) + kv('文字密度', t.text_density);
+
+    const comp = profile.composition;
+    const cam = profile.camera_perspective;
+    const photo = profile.photography;
+    document.getElementById('composition-view').innerHTML =
+      kv('布局类型', comp.layout_type) + kv('焦点位置', comp.focal_point) +
+      kv('文字区域', comp.text_zone) + kv('元素密度', comp.element_density) +
+      kv('拍摄角度', cam.angle) + kv('构图规则', cam.composition_rule) +
+      kv('景深', cam.depth_of_field) + kv('留白', cam.negative_space) +
+      (photo.present ? kv('摄影主体', photo.subject) + kv('摄影风格', photo.style) + kv('摄影情绪', photo.mood) : kv('摄影', '无')) +
+      kv('背景处理', profile.background_treatment) + kv('渲染风格', profile.rendering_style);
+
+    const sigs = profile.signature_elements;
+    document.getElementById('signature-view').innerHTML = sigs.length === 0
+      ? '<span style="color:var(--muted);font-size:13px;">未检测到标志性元素</span>'
+      : sigs.map(s => `
+        <div style="border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:10px;font-size:13px;">
+          <div style="font-weight:600;margin-bottom:6px;">${s.name}</div>
+          ${kv('作用', s.role)} ${kv('通常位置', s.typical_placement)}
+          ${kv('色彩处理', s.color_treatment)} ${kv('视觉权重', s.prominence)}
+          ${s.rules.length ? `<div style="margin-top:6px;">${s.rules.map(r => `<div style="color:var(--muted)">• ${r}</div>`).join('')}</div>` : ''}
+        </div>`).join('');
+
+    document.getElementById('mood-view').innerHTML =
+      kv('品牌情绪', profile.brand_mood) + kv('视觉基调', profile.visual_tone) +
+      kv('Logo 位置', profile.logo_placement) +
+      kv('光线风格', profile.lighting.style) + kv('光线方向', profile.lighting.direction) +
+      kv('色温', profile.lighting.temperature);
+
+    document.getElementById('avoid-view').innerHTML = profile.what_to_avoid.length === 0
+      ? '<span style="color:var(--muted);font-size:13px;">无</span>'
+      : profile.what_to_avoid.map(r => `<div style="font-size:13px;margin-bottom:4px;">⚠️ ${r}</div>`).join('');
+  }
+</script>
+{% endblock %}

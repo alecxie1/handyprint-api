@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}提示词审核{% endblock %}
+{% block nav4 %}active{% endblock %}
+{% block content %}
+<h1>提示词审核</h1>
+<p class="subtitle">审阅并编辑 AI 生成提示词，确认后开始生成图像</p>
+
+<div id="error" class="error"></div>
+
+<div class="card" style="display:flex;gap:16px;align-items:center;">
+  <div style="flex:1;display:flex;gap:24px;font-size:13px;">
+    <div><span style="color:var(--muted);">品牌：</span><strong id="client-display">—</strong></div>
+    <div><span style="color:var(--muted);">格式：</span><strong id="format-display">—</strong></div>
+  </div>
+  <a href="/generate" style="font-size:13px;color:var(--red);">← 返回修改</a>
+</div>
+
+<div class="card">
+  <h2>生成提示词</h2>
+  <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">
+    可直接编辑提示词。关键限制（禁止 Logo、留白区域）已锁定在末尾，请勿删除。
+  </div>
+  <textarea id="prompt-textarea" rows="14" style="font-size:13px;line-height:1.6;"></textarea>
+  <div style="font-size:12px;color:var(--muted);margin-top:6px;" id="token-count">0 字符</div>
+</div>
+
+<div style="display:flex;gap:10px;align-items:center;">
+  <button class="btn btn-secondary" onclick="window.location.href='/generate'">← 返回</button>
+  <button class="btn btn-primary" id="generate-btn">
+    <div class="spinner" id="spinner" style="display:none"></div>
+    <span id="btn-text">确认，开始生成 ✦</span>
+  </button>
+  <span style="font-size:12px;color:var(--muted);">将生成 4 张背景变体，约需 30–60 秒</span>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const prompt = state.get('prompt');
+  const clientName = state.get('client_name');
+  const formatKey = state.get('format_key');
+  const formatLabel = state.get('format_label');
+  const errEl = document.getElementById('error');
+  const genBtn = document.getElementById('generate-btn');
+  const spinner = document.getElementById('spinner');
+  const btnText = document.getElementById('btn-text');
+  const textarea = document.getElementById('prompt-textarea');
+
+  document.getElementById('client-display').textContent = clientName || '—';
+  document.getElementById('format-display').textContent = formatLabel || '—';
+
+  if (prompt) {
+    textarea.value = prompt;
+    document.getElementById('token-count').textContent = prompt.length + ' 字符';
+  }
+
+  textarea.oninput = () => {
+    document.getElementById('token-count').textContent = textarea.value.length + ' 字符';
+  };
+
+  genBtn.onclick = async () => {
+    const currentPrompt = textarea.value.trim();
+    if (!currentPrompt) return showError(errEl, '提示词不能为空');
+
+    hideError(errEl);
+    genBtn.disabled = true;
+    spinner.style.display = 'block';
+    btnText.textContent = '生成中...';
+
+    try {
+      const data = await api('/api/generate', 'POST', {
+        prompt: currentPrompt,
+        format_key: formatKey,
+        client_name: clientName,
+      });
+      state.set('results', data);
+      window.location.href = '/results';
+    } catch(e) {
+      showError(errEl, '生成失败: ' + e.message);
+      genBtn.disabled = false;
+      spinner.style.display = 'none';
+      btnText.textContent = '确认，开始生成 ✦';
+    }
+  };
+</script>
+{% endblock %}

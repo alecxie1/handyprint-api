@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title %}品牌上传{% endblock %}
+{% block nav1 %}active{% endblock %}
+{% block content %}
+<h1>品牌素材上传</h1>
+<p class="subtitle">上传客户品牌参考图或加载已保存的品牌档案</p>
+
+<div id="error" class="error"></div>
+
+<div class="card">
+  <h2>已保存的品牌档案</h2>
+  <div id="brand-library" style="display:flex;gap:8px;flex-wrap:wrap;min-height:36px;">
+    <span style="color:var(--muted);font-size:13px;" id="lib-empty">加载中...</span>
+  </div>
+</div>
+
+<div class="card">
+  <h2>新建品牌分析</h2>
+  <div style="margin-bottom:16px;">
+    <label for="client-name">客户名称</label>
+    <input type="text" id="client-name" placeholder="例: AIA友邦保险" autocomplete="off">
+  </div>
+  <div style="margin-bottom:20px;">
+    <label>上传品牌素材 (PNG / JPG / PDF)</label>
+    <div id="drop-zone" style="
+      border: 2px dashed var(--border); border-radius: var(--radius); padding: 32px;
+      text-align: center; cursor: pointer; transition: border-color 0.15s; background: var(--gray);">
+      <div style="font-size:32px;margin-bottom:8px;">📁</div>
+      <div style="font-size:14px;color:var(--muted);">拖放文件到此处，或点击选择</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px;">支持 PNG, JPG, PDF · 最多 10 个文件</div>
+      <input type="file" id="file-input" multiple accept=".png,.jpg,.jpeg,.pdf" style="display:none">
+    </div>
+    <div id="file-list" style="margin-top:12px;display:flex;flex-direction:column;gap:6px;"></div>
+  </div>
+  <button class="btn btn-primary" id="analyze-btn" disabled>
+    <div class="spinner" id="spinner" style="display:none"></div>
+    <span id="btn-text">分析品牌</span>
+  </button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const errEl = document.getElementById('error');
+  const clientInput = document.getElementById('client-name');
+  const dropZone = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('file-input');
+  const fileList = document.getElementById('file-list');
+  const analyzeBtn = document.getElementById('analyze-btn');
+  const spinner = document.getElementById('spinner');
+  const btnText = document.getElementById('btn-text');
+  let selectedFiles = [];
+
+  // Load saved brands
+  fetch('/api/brands').then(r => r.json()).then(data => {
+    const lib = document.getElementById('brand-library');
+    if (data.brands.length === 0) {
+      document.getElementById('lib-empty').textContent = '暂无已保存档案';
+      return;
+    }
+    lib.innerHTML = '';
+    data.brands.forEach(name => {
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-secondary';
+      btn.style.fontSize = '13px';
+      btn.style.padding = '6px 14px';
+      btn.textContent = name;
+      btn.onclick = () => loadBrand(name);
+      lib.appendChild(btn);
+    });
+  }).catch(() => { document.getElementById('lib-empty').textContent = '加载失败'; });
+
+  async function loadBrand(name) {
+    try {
+      const data = await api('/api/brands/' + name, 'GET');
+      state.set('profile', data.profile);
+      state.set('client_name', data.client_name);
+      window.location.href = '/profile';
+    } catch(e) { showError(errEl, e.message); }
+  }
+
+  // Drag and drop
+  dropZone.onclick = () => fileInput.click();
+  dropZone.ondragover = (e) => { e.preventDefault(); dropZone.style.borderColor = 'var(--red)'; };
+  dropZone.ondragleave = () => { dropZone.style.borderColor = 'var(--border)'; };
+  dropZone.ondrop = (e) => {
+    e.preventDefault();
+    dropZone.style.borderColor = 'var(--border)';
+    addFiles([...e.dataTransfer.files]);
+  };
+  fileInput.onchange = () => addFiles([...fileInput.files]);
+
+  function addFiles(files) {
+    files.forEach(f => {
+      if (!selectedFiles.find(x => x.name === f.name)) selectedFiles.push(f);
+    });
+    renderFileList();
+    updateBtn();
+  }
+
+  function renderFileList() {
+    fileList.innerHTML = '';
+    selectedFiles.forEach((f, i) => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--gray);border-radius:6px;font-size:13px;';
+      row.innerHTML = `<span style="flex:1">📄 ${f.name} <span style="color:var(--muted)">(${(f.size/1024/1024).toFixed(1)} MB)</span></span>
+        <button onclick="removeFile(${i})" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:16px;">×</button>`;
+      fileList.appendChild(row);
+    });
+  }
+
+  function removeFile(i) { selectedFiles.splice(i, 1); renderFileList(); updateBtn(); }
+  function updateBtn() { analyzeBtn.disabled = selectedFiles.length === 0 || !clientInput.value.trim(); }
+  clientInput.oninput = updateBtn;
+
+  analyzeBtn.onclick = async () => {
+    hideError(errEl);
+    const clientName = clientInput.value.trim();
+    if (!clientName) return showError(errEl, '请输入客户名称');
+    if (selectedFiles.length === 0) return showError(errEl, '请上传至少一个品牌素材');
+
+    analyzeBtn.disabled = true;
+    spinner.style.display = 'block';
+    btnText.textContent = '分析中...';
+
+    const formData = new FormData();
+    formData.append('client_name', clientName);
+    selectedFiles.forEach(f => formData.append('files', f));
+
+    try {
+      const res = await fetch('/api/brands/analyze', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '分析失败');
+      state.set('profile', data.profile);
+      state.set('client_name', data.client_name);
+      window.location.href = '/profile';
+    } catch(e) {
+      showError(errEl, '分析失败: ' + e.message);
+      analyzeBtn.disabled = false;
+      spinner.style.display = 'none';
+      btnText.textContent = '分析品牌';
+    }
+  };
+</script>
+{% endblock %}
