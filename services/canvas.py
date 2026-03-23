@@ -13,6 +13,7 @@ import gzip
 import json
 import os
 import uuid
+from pathlib import Path
 
 import requests
 
@@ -22,7 +23,19 @@ from config import FORMATS, TEMPLATE_IDS, YFT_BACKEND_URL
 YFT_FRONTEND_URL = os.getenv("YFT_FRONTEND_URL", "http://localhost:5173")
 
 # Base URL for our Flask app assets (must be reachable from the editor browser)
-FLASK_BASE_URL = os.getenv("FLASK_BASE_URL", "http://localhost:5000")
+FLASK_BASE_URL = os.getenv("FLASK_BASE_URL", "http://localhost:8789")
+
+# Static assets dir (for embedding as data URLs to avoid CORS/tainted canvas)
+ASSETS_DIR = Path(__file__).parent.parent / "static" / "assets"
+GENERATED_DIR = Path(__file__).parent.parent / "generated"
+
+
+def _file_to_data_url(filepath: Path) -> str:
+    """Read a local file and return a base64 data URL."""
+    ext = filepath.suffix.lower().lstrip(".")
+    mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg"}.get(ext, "image/png")
+    data = base64.b64encode(filepath.read_bytes()).decode("utf-8")
+    return f"data:{mime};base64,{data}"
 
 
 # ── Per-format layer specs ─────────────────────────────────────────────────────
@@ -30,53 +43,59 @@ FLASK_BASE_URL = os.getenv("FLASK_BASE_URL", "http://localhost:5000")
 
 LAYER_SPECS = {
     "wechat_banner": {
+        # 900 × 500
         "logo": {
-            "left": 30, "top": 20,
-            "width": 160, "height": 60,
+            "left": 30, "top": 22,
+            "width": 180, "height": 68,
         },
         "mountain": {
-            "left": 0, "top": 340,
-            "width": 900, "height": 160,
+            "left": 0, "top": 330,
+            "width": 900, "height": 170,
         },
         "headline": {
-            "left": 30, "top": 355,
-            "width": 550, "height": 80,
+            "left": 30, "top": 210,
+            "width": 600, "height": 120,
             "font_family": "HYQiHei-50S",
-            "font_size": 36,
+            "font_size": 56,
+            "font_weight": "bold",
             "fill": "#FFFFFF",
         },
     },
     "a4_flyer": {
+        # 2480 × 3508
         "logo": {
-            "left": 80, "top": 80,
-            "width": 360, "height": 135,
+            "left": 120, "top": 120,
+            "width": 600, "height": 226,
         },
         "mountain": {
-            "left": 0, "top": 2800,
-            "width": 2480, "height": 708,
+            "left": 0, "top": 2900,
+            "width": 2480, "height": 500,
         },
         "headline": {
-            "left": 80, "top": 2620,
-            "width": 2000, "height": 300,
+            "left": 120, "top": 2680,
+            "width": 2200, "height": 300,
             "font_family": "HYQiHei-50S",
-            "font_size": 120,
+            "font_size": 160,
+            "font_weight": "bold",
             "fill": "#FFFFFF",
         },
     },
     "square_post": {
+        # 1080 × 1080
         "logo": {
-            "left": 40, "top": 40,
-            "width": 200, "height": 75,
+            "left": 50, "top": 50,
+            "width": 220, "height": 83,
         },
         "mountain": {
-            "left": 0, "top": 790,
-            "width": 1080, "height": 290,
+            "left": 0, "top": 800,
+            "width": 1080, "height": 280,
         },
         "headline": {
-            "left": 40, "top": 760,
-            "width": 800, "height": 120,
+            "left": 50, "top": 600,
+            "width": 900, "height": 180,
             "font_family": "HYQiHei-50S",
-            "font_size": 52,
+            "font_size": 72,
+            "font_weight": "bold",
             "fill": "#FFFFFF",
         },
     },
@@ -106,8 +125,15 @@ def build_canvas_json(
     w, h = fmt["width"], fmt["height"]
 
     mountain_file = "mountain_white_4.png" if mountain_variant == "white" else "mountain_red_4.png"
-    logo_url = f"{FLASK_BASE_URL}/static/assets/aia_logo_red.png"
-    mountain_url = f"{FLASK_BASE_URL}/static/assets/{mountain_file}"
+
+    # Embed static assets as data URLs — avoids CORS/tainted canvas on export
+    logo_url = _file_to_data_url(ASSETS_DIR / "aia_logo_red.png")
+    mountain_url = _file_to_data_url(ASSETS_DIR / mountain_file)
+
+    # AI background: embed if file exists locally, otherwise use URL
+    generated_path = GENERATED_DIR / image_url.split("/generated/")[-1] if "/generated/" in image_url else None
+    if generated_path and generated_path.exists():
+        image_url = _file_to_data_url(generated_path)
 
     logo_spec = specs["logo"]
     mtn_spec = specs["mountain"]
@@ -152,6 +178,7 @@ def build_canvas_json(
                 "id": _nanoid(),
                 "name": "ai-background",
                 "src": image_url,
+                "crossOrigin": "anonymous",
                 "left": 0,
                 "top": 0,
                 "width": w,
@@ -173,6 +200,7 @@ def build_canvas_json(
                 "id": _nanoid(),
                 "name": "mountain-graphic",
                 "src": mountain_url,
+                "crossOrigin": "anonymous",
                 "left": mtn_spec["left"],
                 "top": mtn_spec["top"],
                 "width": mtn_spec["width"],
@@ -194,6 +222,7 @@ def build_canvas_json(
                 "id": _nanoid(),
                 "name": "logo",
                 "src": logo_url,
+                "crossOrigin": "anonymous",
                 "left": logo_spec["left"],
                 "top": logo_spec["top"],
                 "width": logo_spec["width"],
@@ -232,7 +261,7 @@ def build_canvas_json(
                 "isShow": True,
                 "selectable": True,
                 "textAlign": "left",
-                "fontWeight": "normal",
+                "fontWeight": txt_spec.get("font_weight", "bold"),
                 "lineHeight": 1.3,
             },
         ],

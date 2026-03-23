@@ -103,7 +103,11 @@
     const mountainVariant = document.querySelector('input[name="mtn"]:checked').value;
     const originalText = btn.textContent;
     btn.disabled = true;
-    btn.textContent = '组装画布...';
+    btn.textContent = '组装中...';
+
+    // Remove any previous link for this card
+    const existingLink = btn.parentNode.querySelector('.editor-link');
+    if (existingLink) existingLink.remove();
 
     try {
       const data = await api('/api/canvas/assemble', 'POST', {
@@ -112,10 +116,20 @@
         headline_text: headline,
         mountain_variant: mountainVariant,
       });
-      window.open(data.editor_url, '_blank');
+
+      // Render a plain anchor — no window.open, no popups, just a real link
+      const link = document.createElement('a');
+      link.href = data.editor_url;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      link.className = 'editor-link btn btn-primary';
+      link.style.cssText = 'font-size:13px;padding:8px 16px;text-decoration:none;';
+      link.textContent = '✓ 打开编辑器 ↗';
+      btn.parentNode.appendChild(link);
+      btn.style.display = 'none'; // hide original button
+
     } catch(e) {
       alert('画布组装失败: ' + e.message);
-    } finally {
       btn.disabled = false;
       btn.textContent = originalText;
     }

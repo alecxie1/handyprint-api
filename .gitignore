@@ -1,0 +1,20 @@
+# Environment / secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+
+# Generated files (runtime data, not code)
+uploads/
+generated/
+brands/
+
+# OS
+.DS_Store
+Thumbs.db
